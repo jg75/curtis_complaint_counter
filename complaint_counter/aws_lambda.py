@@ -10,8 +10,23 @@ from boto3 import client
 dynamodb = client('dynamodb')
 
 
+def _authenticate_via_slack(headers=None, **_kwargs):
+    # TODO Promote me to public when it's time to test me further!
+    # https://api.slack.com/docs/verifying-requests-from-slack#step-by-step_walk-through_for_validating_a_request
+    headers = dict() if not headers else headers
+
+    for required_header in ("X-Slack-Request-Timestamp", "X-Slack-Signature"):
+        if required_header not in headers:
+            return False
+
+    return True
+
+
 def lambda_handler(event, context=None):
     """Lamdba endpoint to count curtis's complaints."""
+    if not _authenticate_via_slack(**event):
+        return {'statusCode': 403, 'headers': dict(), 'body': '{}'}
+
     parsed_body = urllib.parse.parse_qs(event["body"])
     # query strings can be multiple; just take the first of each found
     request_body = {k: v[0] for k, v in parsed_body.items()}
