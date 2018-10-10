@@ -1,11 +1,11 @@
-"""Tests for complaint_counter.py"""
+"""Tests for complaint_counter.py."""
 import json
 from unittest.mock import MagicMock, Mock
 from urllib.parse import urlencode
 
 import pytest
 
-import complaint_counter
+import complaint_counter.aws_lambda
 from complaint_counter import lambda_handler
 
 
@@ -33,10 +33,11 @@ def request_body(**kwargs):
 def dynamodb(monkeypatch):
     """Mock away the dynamodb client used by lambda_handler."""
     # boto3 is not installed for testing
-    monkeypatch.setattr(complaint_counter, 'boto3', Mock(), raising=False)
+    monkeypatch.setattr(complaint_counter.aws_lambda, 'boto3', Mock(),
+                        raising=False)
 
     dynamodb = MagicMock()
-    monkeypatch.setattr(complaint_counter, 'dynamodb', dynamodb)
+    monkeypatch.setattr(complaint_counter.aws_lambda, 'dynamodb', dynamodb)
     return dynamodb
 
 
