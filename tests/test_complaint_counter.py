@@ -113,23 +113,18 @@ def test_lambda_handler_returns_a_channel_visible_response():
     assert json.loads(response['body'])['response_type'] == 'in_channel'
 
 
-def test_lambda_handler_returns_403_with_no_slack_signature_header():
-    """Tests that missing X-Slack-Signature headers cause HTTP 403."""
+@pytest.mark.parametrize("required_header", [
+    "X-Slack-Signature",
+    "X-Slack-Request-Timestamp",
+])
+def test_lambda_handler_returns_403_with_no_slack_auth_header(required_header):
+    """Tests that missing slack auth headers causes HTTP 403."""
     headers = request_headers()
-    headers.pop("X-Slack-Signature")
+    headers.pop(required_header)
 
     request = {"body": request_body(), "headers": headers}
     response = lambda_handler(request)
 
     assert response["statusCode"] == 403
-
-
-def test_lambda_handler_returns_403_with_no_slack_request_timestamp_header():
-    """Tests that missing X-Slack-Request-Timestamp causes HTTP 403."""
-    headers = request_headers()
-    headers.pop("X-Slack-Request-Timestamp")
-
-    request = {"body": request_body(), "headers": headers}
-    response = lambda_handler(request)
-
-    assert response["statusCode"] == 403
+    response_body = json.loads(response["body"])
+    assert response_body == [f'missing required header "{required_header}"']

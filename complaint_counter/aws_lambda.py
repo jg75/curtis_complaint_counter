@@ -10,22 +10,35 @@ from boto3 import client
 dynamodb = client('dynamodb')
 
 
-def _authenticate_via_slack(headers=None, **_kwargs):
+class ForbiddenException(Exception):
+    """Request being processed fails Authorization."""
+
+    def as_response(self):
+        """Return a valid Lambda-API Gateway integration response."""
+        return {
+            "statusCode": 403,
+            "headers": dict(),
+            "body": json.dumps(self.args),
+        }
+
+
+def _authentication_check(headers=None, **_kwargs):
     # TODO Promote me to public when it's time to test me further!
     # https://api.slack.com/docs/verifying-requests-from-slack#step-by-step_walk-through_for_validating_a_request
     headers = dict() if not headers else headers
 
     for required_header in ("X-Slack-Request-Timestamp", "X-Slack-Signature"):
         if required_header not in headers:
-            return False
-
-    return True
+            message = f'missing required header "{required_header}"'
+            raise ForbiddenException(message)
 
 
 def lambda_handler(event, context=None):
     """Lamdba endpoint to count curtis's complaints."""
-    if not _authenticate_via_slack(**event):
-        return {'statusCode': 403, 'headers': dict(), 'body': '{}'}
+    try:
+        _authentication_check(**event)
+    except ForbiddenException as auth_error:
+        return auth_error.as_response()
 
     parsed_body = urllib.parse.parse_qs(event["body"])
     # query strings can be multiple; just take the first of each found
