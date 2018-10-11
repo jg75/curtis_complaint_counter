@@ -1,5 +1,8 @@
 """An AWS Lambda endpoint expecting Slack integration requests."""
+from hashlib import sha256
+import hmac
 import json
+import os
 import time
 import urllib.parse
 import uuid
@@ -22,21 +25,34 @@ class ForbiddenException(Exception):
         }
 
 
-def _authentication_check(headers=None, **_kwargs):
-    # TODO Promote me to public when it's time to test me further!
+def _authentication_check(request):
     # https://api.slack.com/docs/verifying-requests-from-slack#step-by-step_walk-through_for_validating_a_request
-    headers = dict() if not headers else headers
+    headers = request.get("headers", dict())
 
     for required_header in ("X-Slack-Request-Timestamp", "X-Slack-Signature"):
         if required_header not in headers:
             message = f'missing required header "{required_header}"'
             raise ForbiddenException(message)
 
+    secret = os.environ["SIGNING_SECRET"]
+    timestamp = int(headers["X-Slack-Request-Timestamp"])
+
+    # TODO Check X-Slack-Request-Timestamp vs Current Time
+
+    raw_signature = f"v0:{timestamp}:{request['body']}"
+    signature_hmac = hmac.new(secret.encode(), raw_signature.encode(), sha256)
+    signature = b"v0=" + signature_hmac.hexdigest().encode()
+
+    encoded_header = headers["X-Slack-Signature"].encode()
+
+    if not hmac.compare_digest(signature, encoded_header):
+        raise ForbiddenException("X-Slack-Signature was invalid")
+
 
 def lambda_handler(event, context=None):
     """Lamdba endpoint to count curtis's complaints."""
     try:
-        _authentication_check(**event)
+        _authentication_check(event)
     except ForbiddenException as auth_error:
         return auth_error.as_response()
 
