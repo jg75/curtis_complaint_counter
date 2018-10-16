@@ -20,7 +20,11 @@ def lambda_handler(event, context=None):
         authentication_check = SlackAuthenticationCheck(secret)
         authentication_check(event)
     except ForbiddenException as auth_error:
-        return auth_error.as_response()
+        return {
+            "statusCode": 403,
+            "headers": dict(),
+            "body": json.dumps(auth_error.args)
+        }
 
     parsed_body = urllib.parse.parse_qs(event["body"])
     # query strings can be multiple; just take the first of each found

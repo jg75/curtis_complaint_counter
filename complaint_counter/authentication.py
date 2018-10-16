@@ -1,19 +1,10 @@
 """Authentication checks for Lambda API gateway requests."""
 from hashlib import sha256
 import hmac
-import json
 
 
 class ForbiddenException(Exception):
     """Request being processed fails Authorization."""
-
-    def as_response(self):
-        """Return a valid Lambda-API Gateway integration response."""
-        return {
-            "statusCode": 403,
-            "headers": dict(),
-            "body": json.dumps(self.args),
-        }
 
 
 class SlackAuthenticationCheck(object):
