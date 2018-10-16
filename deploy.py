@@ -1,5 +1,6 @@
 """Deployment script for the Curtis Complaint Counter."""
 import io
+import os
 import zipfile
 
 from boto3 import client
@@ -16,7 +17,10 @@ def main():
     code_zip = io.BytesIO()
 
     with zipfile.ZipFile(code_zip, 'w') as archive:
-        archive.write('complaint_counter.py')
+        for root, dirs, files in os.walk('complaint_counter'):
+            for filename in (f for f in files if not f.endswith(".pyc")):
+                filepath = os.path.join(root, filename)
+                archive.write(filepath)
 
     aws_lambda.update_function_code(
         FunctionName="CurtisComplaintCounter",
