@@ -4,6 +4,8 @@ Tests in here are built using the example from the slack API documentation:
 
     https://api.slack.com/docs/verifying-requests-from-slack#step-by-step_walk-through_for_validating_a_request
 """
+from hashlib import sha256
+import hmac
 import time
 
 import pytest
@@ -82,3 +84,32 @@ def test_SlackAuthenticationCheck_failures(signing_secret, request_dict, body,
 
     with pytest.raises(authentication.ForbiddenException):
         check(request_dict)
+
+
+@pytest.mark.parametrize("age_in_seconds", [60 * 5, 60 * 10, 60 * 1000000])
+def test_SlackAuthenticationCheck_old_request_timestamp(
+    age_in_seconds,
+    signing_secret,
+    timestamp,
+):
+    """Tests that SlackAuthenticationCheck denies old requests."""
+    check = authentication.SlackAuthenticationCheck(signing_secret)
+
+    body = "hello world"
+    request_timestamp = timestamp - age_in_seconds
+
+    raw_signature = f"v0:{request_timestamp}:{body}"
+    signature_hmac = hmac.new(signing_secret.encode(), raw_signature.encode(),
+                              sha256)
+    signature = b"v0=" + signature_hmac.hexdigest().encode()
+
+    request = {
+        "body": body,
+        "headers": {
+            "X-Slack-Signature": signature.decode(),
+            "X-Slack-Request-Timestamp": str(request_timestamp),
+        },
+    }
+
+    with pytest.raises(authentication.ForbiddenException):
+        check(request)
