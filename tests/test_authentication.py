@@ -46,8 +46,7 @@ def request_dict(signing_secret, timestamp):
     return {"body": body, "headers": headers}
 
 
-def test_lambda_handler_slack_authentication_example(signing_secret,
-                                                     request_dict):
+def test_SlackAuthenticationCheck_slack_example(signing_secret, request_dict):
     """Tests that the exact slack example returns a 200."""
     check = authentication.SlackAuthenticationCheck(signing_secret)
 
@@ -67,12 +66,8 @@ def test_lambda_handler_slack_authentication_example(signing_secret,
     # Request-Timestamp doesn't match the signed header
     (None, {"X-Slack-Request-Timestamp": f"{TIMESTAMP + 600}"}),
 ))
-def test_lambda_handler_slack_authentication_fails(
-    signing_secret,
-    request_dict,
-    body,
-    headers,
-):
+def test_SlackAuthenticationCheck_failures(signing_secret, request_dict, body,
+                                           headers):
     """Tests that headers with mismatching bodies raise ForbiddenException."""
     check = authentication.SlackAuthenticationCheck(signing_secret)
 
