@@ -170,32 +170,3 @@ def test_lambda_handler_returns_403_with_invalid_slack_signature_header():
     assert response["statusCode"] == 403
     response_body = json.loads(response["body"])
     assert response_body == ['X-Slack-Signature was invalid']
-
-
-def test_lambda_handler_slack_authentication_example(monkeypatch):
-    """Tests that the exact slack example returns a 200.
-
-    https://api.slack.com/docs/verifying-requests-from-slack#step-by-step_walk-through_for_validating_a_request
-    """
-    monkeypatch.setattr(time, 'time', lambda: 1531420618)
-    monkeypatch.setattr(os, 'environ',
-                        {"SIGNING_SECRET": "8f742231b10e8888abcd99yyyzzz85a5"})
-
-    headers = {
-        "X-Slack-Signature": "v0=a2114d57b48eac39b9ad189dd8316235a7b4a8d21a10b"
-                             "d27519666489c69b503",
-        "X-Slack-Request-Timestamp": "1531420618",
-    }
-
-    body = "token=xyzz0WbapA4vBCDEFasx0q6G&team_id=T1DC2JH3J&team_domain=tes" \
-           "tteamnow&channel_id=G8PSS9T3V&channel_name=foobar&user_id=U2CERL" \
-           "KJA&user_name=roadrunner&command=%2Fwebhook-collect&text=&respon" \
-           "se_url=https%3A%2F%2Fhooks.slack.com%2Fcommands%2FT1DC2JH3J%2F39" \
-           "7700885554%2F96rGlfmibIGlgcZRskXaIFfN&trigger_id=398738663015.47" \
-           "445629121.803a0bc887a14d10d2c447fce8b6703c"
-    print(body)
-
-    request = {"body": body, "headers": headers}
-
-    response = lambda_handler(request)
-    assert response["statusCode"] == 200
