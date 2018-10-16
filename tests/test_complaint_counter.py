@@ -11,6 +11,7 @@ import pytest
 
 import complaint_counter.aws_lambda
 from complaint_counter import lambda_handler
+from complaint_counter.authentication import ForbiddenException
 
 
 def make_request(body=None, headers=None, *, secret=None, timestamp=None):
@@ -82,26 +83,34 @@ def environment_variables(monkeypatch):
     monkeypatch.setattr(os, 'environ', environment)
 
 
-def test_lambda_handler_returns_200():
+@pytest.fixture
+def auth_check():
+    """Mock out and return an auth check to be injected into lambda_handler."""
+    auth_check = Mock()
+    auth_check.return_value = None  # by default, do nothing
+    return auth_check
+
+
+def test_lambda_handler_returns_200(auth_check):
     """Test that lambda_handler returns a 200 status code."""
     request = make_request()
-    response = lambda_handler(request)
+    response = lambda_handler(request, authentication_check=auth_check)
     assert response['statusCode'] == 200
 
 
-def test_lambda_handler_quotes_the_complaint():
+def test_lambda_handler_quotes_the_complaint(auth_check):
     """Test that the lambda_handler returns the complaint as a quote."""
     complaint = "about foo and bar"
 
     request_body = {"text": complaint}
     request = make_request(request_body)
 
-    response = lambda_handler(request)
+    response = lambda_handler(request, authentication_check=auth_check)
 
     assert f'\n> {complaint}' in json.loads(response['body'])['text']
 
 
-def test_lambda_handler_saves_complaints_to_storage(dynamodb):
+def test_lambda_handler_saves_complaints_to_storage(dynamodb, auth_check):
     """Tests that lambda_handler saves complaints."""
     text = "dynamo db serializes objects"
     username = "johnquincyadams"
@@ -109,7 +118,7 @@ def test_lambda_handler_saves_complaints_to_storage(dynamodb):
     body = {"text": text, "user_name": username}
     request = make_request(body)
 
-    lambda_handler(request)
+    lambda_handler(request, authentication_check=auth_check)
 
     assert len(dynamodb.put_item.mock_calls) == 1
     args, kwargs = dynamodb.put_item.call_args
@@ -121,52 +130,42 @@ def test_lambda_handler_saves_complaints_to_storage(dynamodb):
     assert item["complaint"]["S"] == text
 
 
-def test_lambda_handler_returns_a_total_number_of_complaints(dynamodb):
+def test_lambda_handler_returns_a_total_number_of_complaints(dynamodb,
+                                                             auth_check):
     """Tests that lambda_handler is counting the complaints."""
     count = 774
     dynamodb.scan.return_value = {"Count": 774}
 
     request = make_request()
-    response = lambda_handler(request)
+    response = lambda_handler(request, authentication_check=auth_check)
 
     response_text = json.loads(response['body'])['text']
     assert f"\nCurtis has *{count}* recorded complaints." in response_text
 
 
-def test_lambda_handler_returns_a_channel_visible_response():
+def test_lambda_handler_returns_a_channel_visible_response(auth_check):
     """Tests that lambda_handler yells curtis's complaints to the channel."""
     request = make_request()
-    response = lambda_handler(request)
+    response = lambda_handler(request, authentication_check=auth_check)
 
     assert json.loads(response['body'])['response_type'] == 'in_channel'
 
 
-@pytest.mark.parametrize("required_header", [
-    "X-Slack-Signature",
-    "X-Slack-Request-Timestamp",
-])
-def test_lambda_handler_returns_403_with_no_slack_auth_header(required_header):
-    """Tests that missing slack auth headers causes HTTP 403."""
-    headers = {required_header: None}
-    request = make_request(headers=headers)
-
-    response = lambda_handler(request)
-
-    assert response["statusCode"] == 403
-    response_body = json.loads(response["body"])
-    assert response_body == [f'missing required header "{required_header}"']
-
-
-def test_lambda_handler_returns_403_with_invalid_slack_signature_header():
-    """Tests that invalid X-Slack-Signature headers cause HTTP 403."""
-    bad_signature = "v0=a2114d57b48eac39b9ad189dd8316235a7b4a8d21a10bd275196" \
-                    "66489c69b503"
-
+def test_lambda_handler_converts_auth_check_fail_to_403(auth_check):
+    """Tests that lambda_handler returns 403 on auth_check failures."""
     request = make_request()
-    request["headers"]["X-Slack-Signature"] = bad_signature
+    auth_check.side_effect = ForbiddenException("failed authentication")
 
-    response = lambda_handler(request)
+    response = lambda_handler(request, authentication_check=auth_check)
 
     assert response["statusCode"] == 403
-    response_body = json.loads(response["body"])
-    assert response_body == ['X-Slack-Signature was invalid']
+    assert json.loads(response["body"]) == ["failed authentication"]
+
+
+def test_lambda_handler_calls_auth_check_with_request(auth_check):
+    """Test that lambda_handler calls authentication_check with request."""
+    request = make_request()
+
+    lambda_handler(request, authentication_check=auth_check)
+
+    auth_check.assert_called_with(request)

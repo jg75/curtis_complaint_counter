@@ -13,11 +13,14 @@ from .authentication import SlackAuthenticationCheck, ForbiddenException
 dynamodb = client('dynamodb')
 
 
-def lambda_handler(event, context=None):
+SIGNING_SECRET = os.environ.get('SIGNING_SECRET')
+authentication_check = SlackAuthenticationCheck(SIGNING_SECRET)
+
+
+def lambda_handler(event, context=None, *,
+                   authentication_check=authentication_check):
     """Lamdba endpoint to count curtis's complaints."""
     try:
-        secret = os.environ.get('SIGNING_SECRET')
-        authentication_check = SlackAuthenticationCheck(secret)
         authentication_check(event)
     except ForbiddenException as auth_error:
         return {

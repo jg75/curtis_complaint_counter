@@ -11,6 +11,9 @@ import pytest
 from complaint_counter import authentication
 
 
+TIMESTAMP = 1531420618
+
+
 @pytest.fixture
 def signing_secret():
     """Slack signing secret for the request."""
@@ -20,9 +23,8 @@ def signing_secret():
 @pytest.fixture()
 def timestamp(monkeypatch):
     """Timestamp associated with the request & adds latency to time.time()."""
-    current_time = 1531420618
-    monkeypatch.setattr(time, 'time', lambda: current_time + 1)
-    return current_time
+    monkeypatch.setattr(time, 'time', lambda: TIMESTAMP)
+    return TIMESTAMP
 
 
 @pytest.fixture()
@@ -55,14 +57,15 @@ def test_lambda_handler_slack_authentication_example(signing_secret,
         pytest.fail("Request failed authentication but should have passed.")
 
 
-# TODO Move authentication related tests here and just make sure the
-# lambda-handler calls authentication check
-
-
 @pytest.mark.parametrize("body,headers", (
     ("text=helloworld", None),
+    # Missing required headers
+    (None, {"X-Slack-Signature": None}),
+    (None, {"X-Slack-Request-Timestamp": None}),
+    # Mismatching X-Slack-Signature
     (None, {"X-Slack-Signature": "v0=ac86bcd8b786a8b0871323abcbade312f13ad"}),
-    (None, {"X-Slack-Request-Timestamp": "1531421001"}),
+    # Request-Timestamp doesn't match the signed header
+    (None, {"X-Slack-Request-Timestamp": f"{TIMESTAMP + 600}"}),
 ))
 def test_lambda_handler_slack_authentication_fails(
     signing_secret,
@@ -78,6 +81,9 @@ def test_lambda_handler_slack_authentication_fails(
 
     if headers is not None:
         request_dict["headers"].update(headers)
+        request_dict["headers"] = {
+            k: v for k, v in request_dict["headers"].items() if v is not None
+        }
 
     with pytest.raises(authentication.ForbiddenException):
         check(request_dict)
