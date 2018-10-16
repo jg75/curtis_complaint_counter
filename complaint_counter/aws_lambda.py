@@ -1,17 +1,34 @@
 """An AWS Lambda endpoint expecting Slack integration requests."""
 import json
+import os
 import time
 import urllib.parse
 import uuid
 
 from boto3 import client
 
+from .authentication import SlackAuthenticationCheck, ForbiddenException
+
 
 dynamodb = client('dynamodb')
 
 
-def lambda_handler(event, context=None):
+SIGNING_SECRET = os.environ.get('SIGNING_SECRET')
+authentication_check = SlackAuthenticationCheck(SIGNING_SECRET)
+
+
+def lambda_handler(event, context=None, *,
+                   authentication_check=authentication_check):
     """Lamdba endpoint to count curtis's complaints."""
+    try:
+        authentication_check(event)
+    except ForbiddenException as auth_error:
+        return {
+            "statusCode": 403,
+            "headers": dict(),
+            "body": json.dumps(auth_error.args)
+        }
+
     parsed_body = urllib.parse.parse_qs(event["body"])
     # query strings can be multiple; just take the first of each found
     request_body = {k: v[0] for k, v in parsed_body.items()}
