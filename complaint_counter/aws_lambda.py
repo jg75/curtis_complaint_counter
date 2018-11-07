@@ -14,10 +14,11 @@ dynamodb = client('dynamodb')
 
 
 SIGNING_SECRET = os.environ.get('SIGNING_SECRET')
+TABLE_NAME = os.environ.get('TABLE_NAME')
 authentication_check = SlackAuthenticationCheck(SIGNING_SECRET)
 
 
-def lambda_handler(event, context=None, *,
+def lambda_handler(event, context=None, *, table_name=TABLE_NAME,
                    authentication_check=authentication_check):
     """Lamdba endpoint to count curtis's complaints."""
     try:
@@ -37,7 +38,7 @@ def lambda_handler(event, context=None, *,
 
     # Store complaint in data store
     dynamodb.put_item(
-        TableName="CurtisComplaints",
+        TableName=table_name,
         Item={
             "uuid": {"S": str(uuid.uuid4())},
             "timestamp": {"N": f"{time.time():.10g}"},
@@ -52,7 +53,7 @@ def lambda_handler(event, context=None, *,
     #       it's the only way to get a live count of records in the table.
     #       Since this table will likely only be very small it will likely be
     #       okay for the forseeable future.
-    scan = dynamodb.scan(TableName="CurtisComplaints")
+    scan = dynamodb.scan(TableName=table_name)
     response_body += f'\n\nCurtis has *{scan["Count"]}* recorded complaints.'
 
     response = {

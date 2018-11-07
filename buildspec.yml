@@ -1,0 +1,17 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_REGION: us-east-1
+
+phases:
+  install:
+    commands:
+      - bash .aws/scripts/install.sh
+  build:
+    commands:
+      - bash .aws/scripts/build.sh
+
+  post_build:
+    commands:
+      - bash .aws/scripts/post_build.sh

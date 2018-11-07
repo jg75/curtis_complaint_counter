@@ -1,0 +1,108 @@
+﻿AWSTemplateFormatVersion: 2010-09-09
+
+Transform: AWS::Serverless-2016-10-31
+
+Description: Let Curtis la Gripe manage your complaints using an AWS Lambda backed API Gateway and DynamoDB
+
+Parameters:
+  S3BucketParameter:
+    Description: An S3 bucket containing the source code
+    Type: String
+
+  S3KeyParameter:
+    Description: An S3 key containing the source code
+    Type: String
+
+  DynamoDBTableNameParameter:
+    Description: The Dynamo DB table name
+    Type: String
+    Default: Complaints
+
+  DeploymentStageParameter:
+    Description: The deployment stage
+    Type: String
+    Default: production
+
+Resources:
+  CurtisLaGripeApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: CurtisLaGripe
+      Description: Curtis La Gripe API Gateway
+
+  CurtisLaGripeDatabase:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref S3BucketParameter
+      AttributeDefinitions:
+        - AttributeName: uuid
+          AttributeType: S
+      KeySchema:
+        - AttributeName: uuid
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  CurtisLaGripeFunctionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: CurtisLaGripeFunctionExecutionPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:DescribeReservedCapacityOfferings
+                  - dynamodb:DescribeReservedCapacity
+                  - dynamodb:ListTagsOfResource
+                  - dynamodb:DescribeTimeToLive
+                  - dynamodb:DescribeLimits
+                  - dynamodb:ListStreams
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - dynamodb:BatchGetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Scan
+                  - dynamodb:DescribeStream
+                  - dynamodb:Query
+                  - dynamodb:DescribeGlobalTableSettings
+                  - dynamodb:DescribeTable
+                  - dynamodb:DescribeGlobalTable
+                  - dynamodb:GetShardIterator
+                  - dynamodb:GetItem
+                  - dynamodb:DescribeContinuousBackups
+                  - dynamodb:DescribeBackup
+                  - dynamodb:GetRecords
+                Resource: !GetAtt [ CurtisLaGripeDatabase, Arn ]
+
+  CurtisLaGripeFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CurtisLaGripe
+      Description: Curtis La Gripe Lambda Function
+      Code:
+        S3Bucket: !Ref S3BucketParameter
+        S3Key: !Ref S3KeyParameter
+      Handler: complaint_counter.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt [ CurtisLaGripeExecutionRole, Arn ]
+      Runtime: python3.6
+      Timeout: 3
+      Environment:
+        Variables:
+          SIGNING_SECRET: a2531feb67b87afcd0698d437b785381
